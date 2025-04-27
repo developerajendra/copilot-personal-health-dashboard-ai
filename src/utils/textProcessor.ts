@@ -10,6 +10,12 @@ export interface StructuredMedicalData {
     sample?: string;
     referredBy?: string;
   };
+  testResults?: {
+    investigation: string[];
+    observedValue: string[];
+    unit: string[];
+    biologicalRefInterval: string[];
+  };
   measurements?: { [key: string]: string };
   diagnosis?: string[];
   medications?: string[];
@@ -26,26 +32,17 @@ export class TextProcessor {
 
     try {
       this.isInitializing = true;
-      
       // Clean up any existing tensors
       tf.disposeVariables();
-      tf.engine().startScope();
 
+      // For now, we'll just use a simple text classification model
       const model = tf.sequential();
-      model.add(tf.layers.dense({ units: 64, activation: 'relu', inputShape: [100] }));
-      model.add(tf.layers.dense({ units: 32, activation: 'relu' }));
-      model.add(tf.layers.dense({ units: 4, activation: 'softmax' }));
-
-      model.compile({
-        optimizer: 'adam',
-        loss: 'categoricalCrossentropy',
-        metrics: ['accuracy'],
-      });
-
       this.model = model;
+    } catch (error) {
+      console.error('Error loading model:', error);
+      throw error;
     } finally {
       this.isInitializing = false;
-      tf.engine().endScope();
     }
   }
 
@@ -62,37 +59,109 @@ export class TextProcessor {
     console.log('Processing text:', text);
     const sections: { [key: string]: string[] } = {
       patientInfo: [],
-      measurements: [],
+      investigation: [],
+      observedValue: [],
+      unit: [],
+      biologicalRefInterval: [],
       diagnosis: [],
-      medications: [],
+      medications: []
     };
 
-    // Split by both newlines and multiple spaces
-    const lines = text.split(/[\n\r]+/).map(line => line.trim());
+    // Clean up the text by removing extra spaces and normalizing whitespace
+    const cleanText = text.replace(/\s+/g, ' ').trim();
+    const lines = cleanText.split(/[\n\r]+/).map(line => {
+      // Remove duplicate words that appear due to PDF formatting
+      return line.replace(/(\b\w+\b)(\s+\1\b)+/g, '$1').trim();
+    });
+
     console.log('Split lines:', lines);
+
+    let isTestResultSection = false;
+    const columnIndices: { [key: string]: number } = {};
 
     lines.forEach(line => {
       const lowerLine = line.toLowerCase().trim();
-      console.log('Processing line:', lowerLine);
 
-      // Match the specific format patterns
-      if (lowerLine.includes('order id') || 
-          lowerLine.includes('name') || 
+      // Match patient info patterns with more flexible matching
+      if (lowerLine.includes('order id') ||
+          lowerLine.includes('name') ||
           lowerLine.includes('collected on') ||
           lowerLine.includes('gender') ||
           lowerLine.includes('age') ||
           lowerLine.includes('sample') ||
           lowerLine.includes('ref. by')) {
-        console.log('Found patient info:', line);
         sections.patientInfo.push(line);
-      } else if (lowerLine.includes('investigation') || lowerLine.includes('observed value')) {
-        console.log('Found measurement:', line);
-        sections.measurements.push(line);
+      }
+
+      // Detect test result section header
+      if (lowerLine.includes('investigation') &&
+          (lowerLine.includes('observed') || lowerLine.includes('value')) &&
+          lowerLine.includes('unit')) {
+        isTestResultSection = true;
+        const values = line.split(/\s+/);
+        
+        // Find column indices with more robust detection
+        values.forEach((value, index) => {
+          const lowerValue = value.toLowerCase();
+          if (lowerValue.includes('investigation')) {
+            columnIndices['investigation'] = index;
+          } else if (lowerValue.includes('observed') || lowerValue.includes('value')) {
+            columnIndices['observedValue'] = index;
+          } else if (lowerValue === 'unit') {
+            columnIndices['unit'] = index;
+          } else if (lowerValue.includes('biological') || lowerValue.includes('ref')) {
+            columnIndices['biologicalRefInterval'] = index;
+          }
+        });
+      }
+
+      // Process test results
+      if (isTestResultSection && Object.keys(columnIndices).length > 0) {
+        const values = line.split(/\s+/);
+        if (values.length >= 3) {
+          const investigationValue = this.getColumnValue(values, columnIndices['investigation']);
+          const observedValue = this.getColumnValue(values, columnIndices['observedValue']);
+          const unitValue = this.getColumnValue(values, columnIndices['unit']);
+          const refValue = this.getColumnValue(values, columnIndices['biologicalRefInterval']);
+
+          if (investigationValue) sections.investigation.push(investigationValue);
+          if (observedValue) sections.observedValue.push(observedValue);
+          if (unitValue) sections.unit.push(unitValue);
+          if (refValue) sections.biologicalRefInterval.push(refValue);
+        }
       }
     });
 
-    console.log('Processed sections:', sections);
     return sections;
+  }
+
+  private getColumnValue(values: string[], index: number): string | undefined {
+    if (index === undefined || index >= values.length) return undefined;
+    return values[index].trim();
+  }
+
+  private extractValue(text: string, field: string): string | undefined {
+    const regex = new RegExp(`${field}\\s*[.:]\\s*([^\\n,]+)`, 'i');
+    const match = text.match(regex);
+    console.log(`Extracting ${field}:`, { text, match });
+    return match ? match[1].trim() : undefined;
+  }
+
+  private extractName(text: string): string | undefined {
+    const nameMatch = text.match(/Name\s*[.:]?\s*([^,\n]+?)(?=\s+(?:Collected|Gender|Age|Sample|Ref))/i);
+    return nameMatch ? nameMatch[1].trim() : undefined;
+  }
+
+  private extractAgeGender(text: string): { age?: string; gender?: string } | undefined {
+    const regex = /Gender\s*\/?\s*Age\s*[.:]?\s*(\d+)\s*(?:Yrs?|Years?)?\s*(\w+)/i;
+    const match = text.match(regex);
+    if (match) {
+      return {
+        age: match[1],
+        gender: match[2]
+      };
+    }
+    return undefined;
   }
 
   async structureData(textContent: string[]): Promise<StructuredMedicalData> {
@@ -114,21 +183,24 @@ export class TextProcessor {
         const patientInfo = sections.patientInfo.join(' ');
         if (patientInfo) {
           structuredData.patientInfo = {
-            orderId: this.extractValue(patientInfo, 'order id'),
-            name: this.extractDetailedValue(patientInfo, 'name'),
-            date: this.extractValue(patientInfo, 'collected on'),
+            orderId: this.extractValue(patientInfo, 'Order ID'),
+            name: this.extractName(patientInfo),
+            date: this.extractValue(patientInfo, 'Collected On'),
             age: this.extractAgeGender(patientInfo)?.age,
             gender: this.extractAgeGender(patientInfo)?.gender,
-            sample: this.extractValue(patientInfo, 'sample'),
-            referredBy: this.extractValue(patientInfo, 'ref. by'),
+            sample: this.extractValue(patientInfo, 'Sample'),
+            referredBy: this.extractValue(patientInfo, 'Ref. By')
           };
-          console.log('Extracted patient info:', structuredData.patientInfo);
         }
 
-        // Extract measurements
-        if (sections.measurements.length > 0) {
-          structuredData.measurements = this.extractDetailedMeasurements(sections.measurements);
-          console.log('Extracted measurements:', structuredData.measurements);
+        // Extract test results
+        if (sections.investigation.length > 0) {
+          structuredData.testResults = {
+            investigation: sections.investigation,
+            observedValue: sections.observedValue,
+            unit: sections.unit,
+            biologicalRefInterval: sections.biologicalRefInterval
+          };
         }
       });
 
@@ -136,56 +208,8 @@ export class TextProcessor {
       return structuredData;
     } catch (error) {
       console.error('Error in structuring data:', error);
-      // Clean up on error
       await this.cleanup();
       throw error;
     }
-  }
-
-  private extractValue(text: string, field: string): string | undefined {
-    // Handle both : and . as separators
-    const regex = new RegExp(`${field}[.:]\\s*([^\\n,]+)`, 'i');
-    const match = text.match(regex);
-    console.log(`Extracting ${field}:`, { text, match });
-    return match ? match[1].trim() : undefined;
-  }
-
-  private extractDetailedValue(text: string, field: string): string | undefined {
-    const regex = new RegExp(`${field}[.:]\\s*([^\\n]+?)(?=\\s+\\w+[.:]|$)`, 'i');
-    const match = text.match(regex);
-    return match ? match[1].trim() : undefined;
-  }
-
-  private extractAgeGender(text: string): { age?: string; gender?: string } | undefined {
-    const regex = /gender\s*\/?\s*age\s*[.:]?\s*(\d+)\s*(?:yrs|years)?\s*(\w+)/i;
-    const match = text.match(regex);
-    if (match) {
-      return {
-        age: match[1],
-        gender: match[2].toLowerCase()
-      };
-    }
-    return undefined;
-  }
-
-  private extractDetailedMeasurements(lines: string[]): { [key: string]: string } {
-    console.log('Extracting measurements from lines:', lines);
-    const measurements: { [key: string]: string } = {};
-    
-    let currentTest: string | null = null;
-    
-    lines.forEach(line => {
-      const measurementMatch = line.match(/(\w+)\s*:\s*([^:]+)(?=\s+\w+:|$)/g);
-      if (measurementMatch) {
-        measurementMatch.forEach(match => {
-          const [key, value] = match.split(':').map(s => s.trim());
-          if (key && value) {
-            measurements[key] = value;
-          }
-        });
-      }
-    });
-
-    return measurements;
   }
 }

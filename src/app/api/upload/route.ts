@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PDFProcessor } from '@/utils/pdfProcessor';
 import { TextProcessor } from '@/utils/textProcessor';
+import * as fs from 'fs';
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,13 +18,18 @@ export async function POST(request: NextRequest) {
     // Process PDF and extract text
     const pdfProcessor = new PDFProcessor();
     const textContent = await pdfProcessor.extractTextFromPDF(arrayBuffer);
-    console.log('Extracted text content:', textContent); // Added debug log
+    fs.writeFileSync('initialPdfData.json', JSON.stringify(textContent, null, 2));
+     
+
     await pdfProcessor.cleanup();
 
     // Structure the extracted text using TensorFlow
     const textProcessor = new TextProcessor();
     const structuredData = await textProcessor.structureData(textContent);
     console.log('Structured data:', structuredData); // Added debug log
+    fs.writeFileSync('structuredData.json', JSON.stringify(structuredData, null, 2));
+    await textProcessor.cleanup();
+
 
     return NextResponse.json({ 
       success: true, 

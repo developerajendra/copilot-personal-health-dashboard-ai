@@ -1,0 +1,25 @@
+{
+  "patientInfo": {
+    "orderId": "17101474420 Name : Ms. KUSHUM GHIMIRE Collected On. : 01/02/2025 08:00:00 Gender / Age : 30 Yrs Female Sample : Urine Ref. By : SELF Remark : Investigation Observed Value Observed Value Observed Value Observed Value Unit Biological Ref Interval Biological Ref Interval Biological Ref Interval Biological Ref Interval U R I N E XAM I NAT I ON T E S T U R I N E XAM I NAT I ON T E S T U R I N E XAM I NAT I ON T E S T U R I N E XAM I NAT I ON T E S T C H E M IC A L E XAM I NAT I ON C H E M IC A L E XAM I NAT I ON C H E M IC A L E XAM I NAT I ON C H E M IC A L E XAM I NAT I ON B I L I R U B I N Dipstick(2",
+    "name": "Ms. KUSHUM GHIMIRE",
+    "date": ": 01/02/2025 08:00:00 Gender / Age : 30 Yrs Female Sample : Urine Ref. By : SELF Remark : Investigation Observed Value Observed Value Observed Value Observed Value Unit Biological Ref Interval Biological Ref Interval Biological Ref Interval Biological Ref Interval U R I N E XAM I NAT I ON T E S T U R I N E XAM I NAT I ON T E S T U R I N E XAM I NAT I ON T E S T U R I N E XAM I NAT I ON T E S T C H E M IC A L E XAM I NAT I ON C H E M IC A L E XAM I NAT I ON C H E M IC A L E XAM I NAT I ON C H E M IC A L E XAM I NAT I ON B I L I R U B I N Dipstick(2",
+    "age": "30",
+    "gender": "Female",
+    "sample": "Urine Ref. By : SELF Remark : Investigation Observed Value Observed Value Observed Value Observed Value Unit Biological Ref Interval Biological Ref Interval Biological Ref Interval Biological Ref Interval U R I N E XAM I NAT I ON T E S T U R I N E XAM I NAT I ON T E S T U R I N E XAM I NAT I ON T E S T U R I N E XAM I NAT I ON T E S T C H E M IC A L E XAM I NAT I ON C H E M IC A L E XAM I NAT I ON C H E M IC A L E XAM I NAT I ON C H E M IC A L E XAM I NAT I ON B I L I R U B I N Dipstick(2",
+    "referredBy": "SELF Remark : Investigation Observed Value Observed Value Observed Value Observed Value Unit Biological Ref Interval Biological Ref Interval Biological Ref Interval Biological Ref Interval U R I N E XAM I NAT I ON T E S T U R I N E XAM I NAT I ON T E S T U R I N E XAM I NAT I ON T E S T U R I N E XAM I NAT I ON T E S T C H E M IC A L E XAM I NAT I ON C H E M IC A L E XAM I NAT I ON C H E M IC A L E XAM I NAT I ON C H E M IC A L E XAM I NAT I ON B I L I R U B I N Dipstick(2"
+  },
+  "testResults": {
+    "investigation": [
+      "Investigation"
+    ],
+    "observedValue": [
+      "Value"
+    ],
+    "unit": [
+      "Unit"
+    ],
+    "biologicalRefInterval": [
+      "Ref"
+    ]
+  }
+}
